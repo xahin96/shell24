@@ -26,7 +26,6 @@ int main() {
             pos = strstr(pos + 1, special_chars[i]);
         }
     }
-
     if (special_char_count == 0) {
         printf("No special character found in the command\n");
     } else if (special_char_count == 1) {

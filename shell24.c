@@ -13,15 +13,19 @@ int has_pipe(char *command) {
 }
 
 int has_or_operator(char *command) {
-    char *token = strtok(command, " ");
+    char *command_copy = strdup(command); // Make a copy of the command
+    char *token = strtok(command_copy, " ");
     while (token != NULL) {
         if (strcmp(token, "||") == 0) {
+            free(command_copy); // Free the memory allocated for the copy
             return 1;
         }
         token = strtok(NULL, " ");
     }
+    free(command_copy); // Free the memory allocated for the copy
     return 0;
 }
+
 
 int has_output_redirect(char *command) {
     char *found = strstr(command, ">");
@@ -46,8 +50,8 @@ int has_and_operator(char *command) {
 }
 
 int has_background_process(char *command) {
-    char *found = strstr(command, "&");
-    return found != NULL && (strcmp(found, "&&") != 0 || strlen(found) == 1);
+    int length = strlen(command);
+    return length > 0 && command[length - 1] == '&';
 }
 
 int has_sequential_execution(char *command) {
@@ -83,8 +87,6 @@ int main(int argc, char *argv[]) {
         // Remove trailing newline character
         command[strcspn(command, "\n")] = '\0';
 
-        printf("command: %s\n", command);
-
         // Check for newt command to create a new shell24
         if (strcmp(command, "newt") == 0) {
             // Fork to create a new shell24
@@ -93,8 +95,7 @@ int main(int argc, char *argv[]) {
                 execlp("./shell24", "./shell24", "newt", NULL);
                 exit(EXIT_SUCCESS); // Exit successfully to prevent further execution in child
             }
-        }
-        else {
+        } else {
             // Search for special characters
             if (has_hash(command)) {
                 printf("Hash found in command: %s\n", command);
@@ -124,4 +125,3 @@ int main(int argc, char *argv[]) {
     }
     return 0;
 }
-

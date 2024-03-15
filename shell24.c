@@ -3,6 +3,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <fcntl.h> // Include fcntl.h for open function
+
 
 #define MAX_COMMAND_LENGTH 100
 #define MAX_FILENAME_LENGTH 1000
@@ -35,11 +37,11 @@ void concatenate_files(const char **fileNames) {
     printf("%s\n", buffer);
 }
 
-void execute_file_operation_command(char *command) {
-    // Execute the command directly
-    printf("%s\n", command);
+//echo "This is a new line" > output.txt
+void execute_command_file(char *command) {
     system(command);
 }
+
 
 // Function to split command based on OR operator
 char **split_by_or_operator(char *command, char *special_character) {
@@ -124,7 +126,7 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         if (print_prompt) {
-            printf("shell24$ ");
+            printf("\nshell24$ ");
             fflush(stdout);
         }
 
@@ -162,13 +164,13 @@ int main(int argc, char *argv[]) {
                 printf("Pipe found in command: %s\n", command);
             } else if (has_output_redirect(command)) {
                 printf("Output redirection found in command: %s\n", command);
-                execute_file_operation_command(command);
+                execute_command_file(command);
             } else if (has_append_redirect(command)) {
                 printf("Append redirection found in command: %s\n", command);
-                execute_file_operation_command(command);
+                execute_command_file(command);
             } else if (has_input_redirect(command)) {
                 printf("Input redirection found in command: %s\n", command);
-                execute_file_operation_command(command);
+                execute_command_file(command);
             } else if (has_and_operator(command)) {
                 printf("AND operator found in command: %s\n", command);
             } else if (has_or_operator(command)) {

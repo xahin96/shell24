@@ -4,76 +4,71 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-#define BUFFER_LEN 1024
+#define MAX_COMMAND_LENGTH 100
+#define MAX_ARGUMENTS 10
+
+void execute_command(char *command) {
+    char *args[MAX_ARGUMENTS];
+    int arg_count = 0;
+
+    // Tokenize the command into arguments
+    char *token = strtok(command, " ");
+    while (token != NULL && arg_count < MAX_ARGUMENTS - 1) {
+        args[arg_count++] = token;
+        token = strtok(NULL, " ");
+    }
+    args[arg_count] = NULL;
+
+    // Fork to create a child process
+    pid_t pid = fork();
+    if (pid < 0) {
+        fprintf(stderr, "Fork failed\n");
+        exit(EXIT_FAILURE);
+    } else if (pid == 0) {
+        // Child process executes the command
+        if (execvp(args[0], args) == -1) {
+            perror("execvp");
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        // Parent process waits for the child to complete
+        wait(NULL);
+    }
+}
 
 int main() {
-    char line[BUFFER_LEN];      // get command line
-    char *argv[100];            // user command
-    char *path = "/bin/";       // set path at bin
-    char progpath[20];          // full file path
-    int argc;                   // arg count
-    int special_char_count = 0; // count of special characters found
-    char special_chars[] = "|><&;#";
+    char command[MAX_COMMAND_LENGTH];
 
     while (1) {
+        printf("shell24$ ");
+        fflush(stdout);
 
-        printf("My shell>> ");                    // print shell prompt
-
-        if (!fgets(line, BUFFER_LEN, stdin)) {    // get command and put it in line
-            break;                                // if user hits CTRL+D break
-        }
-
-        size_t length = strlen(line);
-        if (line[length - 1] == '\n')
-            line[length - 1] = '\0'; // Remove the newline character
-
-        if (strcmp(line, "exit") == 0) {            // check if command is exit
-            break;
-        }
-
-        char *token;                      // split command into separate strings
-        token = strtok(line, " ");
-        int i = 0;
-        while (token != NULL) {
-            argv[i] = token;
-            // Check if the token contains a special character
-            for (int j = 0; j < strlen(special_chars); j++) {
-                if (strchr(token, special_chars[j])) {
-                    special_char_count++;
-                }
-            }
-            token = strtok(NULL, " ");
-            i++;
-        }
-
-        if (special_char_count > 1) {
-            printf("Invalid command: Multiple types of special characters found\n");
-            special_char_count = 0;
+        // Read user input
+        if (fgets(command, sizeof(command), stdin) == NULL) {
+            fprintf(stderr, "Error reading command\n");
             continue;
         }
 
-        for (i = 0; i < argc; i++) {
-            printf("%s\n", argv[i]);      // print command/args
-        }
-        strcpy(progpath, path);           // copy /bin/ to file path
-        strcat(progpath, argv[0]);            // add program to path
+        // Remove trailing newline character
+        command[strcspn(command, "\n")] = '\0';
 
-        for (i = 0; i < strlen(progpath); i++) {    // delete newline
-            if (progpath[i] == '\n') {
-                progpath[i] = '\0';
+        // Check for newt command to create a new shell24
+        if (strcmp(command, "shell24$newt") == 0) {
+            // Fork to create a new shell24
+            pid_t pid = fork();
+            if (pid < 0) {
+                fprintf(stderr, "Fork failed\n");
+                continue;
+            } else if (pid == 0) {
+                // Child process starts a new shell24
+                execlp("./shell24", "./shell24", NULL);
+                exit(EXIT_FAILURE); // Should not reach here
             }
+        } else {
+            // Execute the entered command
+            execute_command(command);
         }
-        int pid = fork();              // fork child
-
-        if (pid == 0) {               // Child
-            execvp(progpath, argv);
-            fprintf(stderr, "Child process could not do execvp\n");
-
-        } else {                    // Parent
-            wait(NULL);
-            printf("Child exited\n");
-        }
-
     }
+
     return 0;
 }

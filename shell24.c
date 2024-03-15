@@ -5,6 +5,51 @@
 #include <sys/wait.h>
 
 #define MAX_COMMAND_LENGTH 100
+#define MAX_FILENAME_LENGTH 1000
+#define MAX_TOTAL_LENGTH 10000 // Adjust this according to your needs
+
+int special_character_count = 0;
+
+void concatenate_files(const char **fileNames) {
+    char buffer[MAX_TOTAL_LENGTH]; // Buffer to store concatenated content
+    buffer[0] = '\0'; // Initialize buffer as an empty string
+
+    // Loop through each file name
+    for (int i = 0; i < special_character_count; i++) {
+        // Open file for reading
+        FILE *file = fopen(fileNames[i], "r");
+        if (file == NULL) {
+            fprintf(stderr, "Failed to open file: %s\n", fileNames[i]);
+            continue; // Skip to next file if opening fails
+        }
+        // Read content of the file and append it to the buffer
+        char line[MAX_FILENAME_LENGTH];
+        while (fgets(line, MAX_FILENAME_LENGTH, file) != NULL) {
+            strcat(buffer, line);
+        }
+        // Close the file
+        fclose(file);
+    }
+
+    // Print the concatenated content
+    printf("%s\n", buffer);
+}
+
+// Function to split command based on OR operator
+char **split_by_or_operator(char *command, char *special_character) {
+    special_character_count = 0;
+    char *token;
+    char **commands = malloc(MAX_COMMAND_LENGTH * sizeof(char *));
+
+    // Split command by "||" and store each command in the array
+    token = strtok(command, special_character);
+    while (token != NULL) {
+        commands[special_character_count++] = token;
+        token = strtok(NULL, special_character);
+    }
+    commands[special_character_count] = NULL; // Null-terminate the array
+    return commands;
+}
 
 int has_pipe(char *command) {
     char *found_pipe = strstr(command, "|");
@@ -25,7 +70,6 @@ int has_or_operator(char *command) {
     free(command_copy); // Free the memory allocated for the copy
     return 0;
 }
-
 
 int has_output_redirect(char *command) {
     char *found = strstr(command, ">");
@@ -98,7 +142,16 @@ int main(int argc, char *argv[]) {
         } else {
             // Search for special characters
             if (has_hash(command)) {
-                printf("Hash found in command: %s\n", command);
+                //a.txt#b.txt#c.txt
+                // Split command by OR operator
+                char **or_commands = split_by_or_operator(command, "#");
+                if (special_character_count > 6) {
+                    printf("Maximum 5 # can be handled at a time\n");
+                } else {
+                    concatenate_files(or_commands);
+                }
+                // Free memory allocated for command array
+                free(or_commands);
             } else if (has_pipe(command)) {
                 printf("Pipe found in command: %s\n", command);
             } else if (has_output_redirect(command)) {

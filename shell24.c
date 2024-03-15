@@ -36,12 +36,23 @@ void execute_command(char *command) {
     }
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     char command[MAX_COMMAND_LENGTH];
 
+    int print_prompt = 1; // Flag to control prompt printing
+
+    if (argc > 1 && strcmp(argv[1], "newt") == 0) {
+        // This is a new shell, no prompt needed
+        print_prompt = 0;
+    } else {
+        print_prompt = 1;
+    }
+
     while (1) {
-        printf("shell24$ ");
-        fflush(stdout);
+        if (print_prompt) {
+            printf("shell24$ ");
+            fflush(stdout);
+        }
 
         // Read user input
         if (fgets(command, sizeof(command), stdin) == NULL) {
@@ -53,7 +64,7 @@ int main() {
         command[strcspn(command, "\n")] = '\0';
 
         // Check for newt command to create a new shell24
-        if (strcmp(command, "shell24$newt") == 0) {
+        if (strcmp(command, "newt") == 0) {
             // Fork to create a new shell24
             pid_t pid = fork();
             if (pid < 0) {
@@ -61,13 +72,15 @@ int main() {
                 continue;
             } else if (pid == 0) {
                 // Child process starts a new shell24
-                execlp("./shell24", "./shell24", NULL);
-                exit(EXIT_FAILURE); // Should not reach here
+                execlp("./shell24", "./shell24", "newt", NULL);
+                exit(EXIT_SUCCESS); // Exit successfully to prevent further execution in child
             }
         } else {
             // Execute the entered command
             execute_command(command);
         }
+
+        print_prompt = 1; // Set the flag to print prompt after executing command
     }
 
     return 0;

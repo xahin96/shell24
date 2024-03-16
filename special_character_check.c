@@ -1,38 +1,43 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
+#define MAX_COMMAND_LENGTH 100 // Define your maximum command length
+
+char **split_by_and_or_operator(char *command, char *special_character1, char *special_character2) {
+    int special_and_or_count = 0;
+    char *token;
+    char **commands = malloc(MAX_COMMAND_LENGTH * sizeof(char *));
+
+    // Split command by "||" and store each command in the array
+    token = strtok(command, special_character1);
+    while (token != NULL) {
+        commands[special_and_or_count++] = token;
+        token = strtok(NULL, special_character1);
+    }
+    commands[special_and_or_count] = NULL; // Null-terminate the array
+    return commands;
+}
+
+void print_commands(char **commands) {
+    for (int i = 0; commands[i] != NULL; i++) {
+        printf("%d - %s\n", i, commands[i]);
+    }
+}
+
 int main() {
-    char str[100];
-    int len, i;
-    int count[256] = {0};
-    char *special_chars[] = {"#", "|", "<", ">", ">>", "&&", "||", ";"};
-    int num_special_chars = sizeof(special_chars) / sizeof(special_chars[0]);
-    int special_char_count = 0;
+    char command[] = "a || b || c && d";
+    char *special_character1 = "||";
+    char *special_character2 = "&&";
 
-    printf("Enter a command: ");
-    fgets(str, sizeof(str), stdin);
-    len = strlen(str);
+    printf("AND operator found in command: %s\n", command);
+    char **result = split_by_and_or_operator(command, special_character1, special_character2);
 
-    // Count occurrences of each character
-    for (i = 0; i < len; i++) {
-        count[(int)str[i]]++;
-    }
+    // Print the result
+    print_commands(result);
 
-    // Count occurrences of special characters
-    for (i = 0; i < num_special_chars; i++) {
-        char *pos = strstr(str, special_chars[i]);
-        while (pos != NULL) {
-            special_char_count++;
-            pos = strstr(pos + 1, special_chars[i]);
-        }
-    }
-    if (special_char_count == 0) {
-        printf("No special character found in the command\n");
-    } else if (special_char_count == 1) {
-        printf("Special character found in the command\n");
-    } else {
-        printf("Multiple Special characters found in the command\n");
-    }
+    // Free allocated memory
+    free(result);
 
     return 0;
 }

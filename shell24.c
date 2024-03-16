@@ -11,7 +11,7 @@
 #define MAX_FILENAME_LENGTH 1000
 
 int special_space_count = 0;
-int special_and_or_count = 0;
+//int special_and_or_count = 0;
 int special_character_count = 0;
 
 // Function for concatenating files and printing the content
@@ -75,24 +75,21 @@ char **split_by_space_operator(char *command, char *special_character) {
     commands[special_space_count] = NULL; // Null-terminate the array
     return commands;
 }
-char **split_by_and_or_operator(char *command, char *special_character1, char *special_character2) {
-    special_and_or_count = 0;
-    char *token;
-    char **commands = malloc(MAX_COMMAND_LENGTH * sizeof(char *));
 
-    // Split command by special_character1 and store each token in the array
-    token = strtok(command, special_character1);
-    while (token != NULL) {
-        // Split each token by special_character2
-        char *sub_token = strtok(token, special_character2);
-        while (sub_token != NULL) {
-            commands[special_and_or_count++] = sub_token;
-            sub_token = strtok(NULL, special_character2);
-        }
-        token = strtok(NULL, special_character1);
+// Function to count the total number of occurrences of "||" and "&&" in a string
+int count_operators(char *str) {
+    int count = 0;
+    char *ptr = str;
+    while ((ptr = strstr(ptr, "||")) != NULL) {
+        count++;
+        ptr += 2; // Move the pointer to the next character after "||"
     }
-    commands[special_and_or_count] = NULL; // Null-terminate the array
-    return commands;
+    ptr = str;
+    while ((ptr = strstr(ptr, "&&")) != NULL) {
+        count++;
+        ptr += 2; // Move the pointer to the next character after "&&"
+    }
+    return count;
 }
 
 int has_pipe(char *command) {
@@ -214,20 +211,23 @@ int main(int argc, char *argv[]) {
             }
             else if (has_and_operator(command)) {
                 printf("AND operator found in command: %s\n", command);
+                int total_operators = count_operators(command);
+
+                if (total_operators > 5) {
+                    printf("Maximum 5 || or && can be handled at a time\n");
+                } else {
+                    execute_command_file(command);
+                }
             }
             else if (has_or_operator(command)) {
                 printf("OR operator found in command: %s\n", command);
-                char **and_or_commands = split_by_and_or_operator(command, "&&", "||");
+                int total_operators = count_operators(command);
 
-                if (special_and_or_count > 5) {
-                    printf("Maximum 5 ; can be handled at a time\n");
+                if (total_operators > 5) {
+                    printf("Maximum 5 || or && can be handled at a time\n");
                 } else {
-                    for (int i = 0; i < special_and_or_count; i++) {
-                        printf("%d - %s\n", i, and_or_commands[i]);
-                    }
+                    execute_command_file(command);
                 }
-
-                free(and_or_commands);
             }
             else if (has_background_process(command)) {
                 printf("Background process found in command: %s\n", command);

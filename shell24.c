@@ -6,12 +6,16 @@
 #include <fcntl.h> // Include fcntl.h for open function
 
 
+#define MAX_TOTAL_LENGTH 10000 // Adjust this according to your needs
 #define MAX_COMMAND_LENGTH 100
 #define MAX_FILENAME_LENGTH 1000
-#define MAX_TOTAL_LENGTH 10000 // Adjust this according to your needs
 
+int special_space_count = 0;
+int special_and_or_count = 0;
 int special_character_count = 0;
 
+// Function for concatenating files and printing the content
+// receives the list of file names a parameter
 void concatenate_files(const char **fileNames) {
     char buffer[MAX_TOTAL_LENGTH]; // Buffer to store concatenated content
     buffer[0] = '\0'; // Initialize buffer as an empty string
@@ -37,14 +41,13 @@ void concatenate_files(const char **fileNames) {
     printf("%s\n", buffer);
 }
 
-//echo "This is a new line" > output.txt
+// Function for executing commands that contains >, >> & <
 void execute_command_file(char *command) {
     system(command);
 }
 
-
 // Function to split command based on OR operator
-char **split_by_or_operator(char *command, char *special_character) {
+char **split_by_operator(char *command, char *special_character) {
     special_character_count = 0;
     char *token;
     char **commands = malloc(MAX_COMMAND_LENGTH * sizeof(char *));
@@ -56,6 +59,39 @@ char **split_by_or_operator(char *command, char *special_character) {
         token = strtok(NULL, special_character);
     }
     commands[special_character_count] = NULL; // Null-terminate the array
+    return commands;
+}
+char **split_by_space_operator(char *command, char *special_character) {
+    special_space_count = 0;
+    char *token;
+    char **commands = malloc(MAX_COMMAND_LENGTH * sizeof(char *));
+
+    // Split command by "||" and store each command in the array
+    token = strtok(command, special_character);
+    while (token != NULL) {
+        commands[special_space_count++] = token;
+        token = strtok(NULL, special_character);
+    }
+    commands[special_space_count] = NULL; // Null-terminate the array
+    return commands;
+}
+char **split_by_and_or_operator(char *command, char *special_character1, char *special_character2) {
+    special_and_or_count = 0;
+    char *token;
+    char **commands = malloc(MAX_COMMAND_LENGTH * sizeof(char *));
+
+    // Split command by special_character1 and store each token in the array
+    token = strtok(command, special_character1);
+    while (token != NULL) {
+        // Split each token by special_character2
+        char *sub_token = strtok(token, special_character2);
+        while (sub_token != NULL) {
+            commands[special_and_or_count++] = sub_token;
+            sub_token = strtok(NULL, special_character2);
+        }
+        token = strtok(NULL, special_character1);
+    }
+    commands[special_and_or_count] = NULL; // Null-terminate the array
     return commands;
 }
 
@@ -150,36 +186,72 @@ int main(int argc, char *argv[]) {
         } else {
             // Search for special characters
             if (has_hash(command)) {
-                //a.txt#b.txt#c.txt
+                //a.txt#b.txt#c.txt#d.txt#e.txt#f.txt#g.txt
                 // Split command by OR operator
-                char **or_commands = split_by_or_operator(command, "#");
-                if (special_character_count > 6) {
+                char **or_commands = split_by_operator(command, "#");
+                if (special_character_count > 5) {
                     printf("Maximum 5 # can be handled at a time\n");
                 } else {
                     concatenate_files(or_commands);
                 }
                 // Free memory allocated for command array
                 free(or_commands);
-            } else if (has_pipe(command)) {
+            }
+            else if (has_pipe(command)) {
                 printf("Pipe found in command: %s\n", command);
-            } else if (has_output_redirect(command)) {
+            }
+            else if (has_output_redirect(command)) {
                 printf("Output redirection found in command: %s\n", command);
                 execute_command_file(command);
-            } else if (has_append_redirect(command)) {
+            }
+            else if (has_append_redirect(command)) {
                 printf("Append redirection found in command: %s\n", command);
                 execute_command_file(command);
-            } else if (has_input_redirect(command)) {
+            }
+            else if (has_input_redirect(command)) {
                 printf("Input redirection found in command: %s\n", command);
                 execute_command_file(command);
-            } else if (has_and_operator(command)) {
+            }
+            else if (has_and_operator(command)) {
                 printf("AND operator found in command: %s\n", command);
-            } else if (has_or_operator(command)) {
+            }
+            else if (has_or_operator(command)) {
                 printf("OR operator found in command: %s\n", command);
-            } else if (has_background_process(command)) {
+                char **and_or_commands = split_by_and_or_operator(command, "&&", "||");
+
+                if (special_and_or_count > 5) {
+                    printf("Maximum 5 ; can be handled at a time\n");
+                } else {
+                    for (int i = 0; i < special_and_or_count; i++) {
+                        printf("%d - %s\n", i, and_or_commands[i]);
+                    }
+                }
+
+                free(and_or_commands);
+            }
+            else if (has_background_process(command)) {
                 printf("Background process found in command: %s\n", command);
-            } else if (has_sequential_execution(command)) {
-                printf("Sequential execution found in command: %s\n", command);
-            } else {
+            }
+            else if (has_sequential_execution(command)) {
+                char **sequential_commands = split_by_operator(command, ";");
+                if (special_character_count > 5) {
+                    printf("Maximum 5 ; can be handled at a time\n");
+                } else {
+                    for (int i = 0; i < special_character_count; i++) {
+                        char **specific_command = split_by_space_operator(sequential_commands[i], " ");
+                        if (special_space_count > 6) {
+                            printf("Maximum 5 args can be handled at a time\n");
+                            break;
+                        } else {
+                            execute_command_file(sequential_commands[i]);
+                        }
+                        free(specific_command);
+                    }
+                }
+                // Free memory allocated for command array
+                free(sequential_commands);
+            }
+            else {
                 // If no special characters found, print the command itself
                 printf("Plain command: %s\n", command);
             }

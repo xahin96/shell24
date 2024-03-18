@@ -360,11 +360,13 @@ int main(int argc, char *argv[]) {
                 char **output_redirection_commands = split_by_operator(command, ">");
                 if (special_character_count > 2) {
                     printf("Maximum 1 > can be handled at a time\n");
-                } else {
+                } else if (special_character_count == 2) {
                     execute_output_redirection_command(
                     output_redirection_commands[0],
                     output_redirection_commands[1]
                     );
+                } else {
+                    printf("Invalid output redirection command");
                 }
                 // Free memory allocated for command array
                 free(output_redirection_commands);

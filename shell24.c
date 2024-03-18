@@ -11,10 +11,9 @@
 #define MAX_COMMAND_LENGTH 100
 #define MAX_FILENAME_LENGTH 1000
 
-int special_space_count = 0;
-//int special_and_or_count = 0;
-int special_character_count = 0;
 pid_t background_pid;
+int special_space_count = 0;
+int special_character_count = 0;
 
 
 void execute_command_in_background(char *command) {
@@ -292,7 +291,8 @@ int main(int argc, char *argv[]) {
             }
         }
         else {
-            // Search for special characters
+
+            // DONE # Text file (.txt) concatenation
             if (has_hash(command)) {
                 //a.txt#b.txt#c.txt#d.txt#e.txt#f.txt#g.txt
                 // Split command by OR operator
@@ -305,21 +305,31 @@ int main(int argc, char *argv[]) {
                 // Free memory allocated for command array
                 free(hash_commands);
             }
+
+            // | Piping
             else if (has_pipe(command)) {
                 printf("Pipe found in command: %s\n", command);
             }
+
+            // > Redirection
             else if (has_output_redirect(command)) {
                 printf("Output redirection found in command: %s\n", command);
                 execute_command_file(command);
             }
+
+            // >> Redirection
             else if (has_append_redirect(command)) {
                 printf("Append redirection found in command: %s\n", command);
                 execute_command_file(command);
             }
+
+            // < Redirection
             else if (has_input_redirect(command)) {
                 printf("Input redirection found in command: %s\n", command);
                 execute_command_file(command);
             }
+
+            // && Conditional Execution
             else if (has_and_operator(command)) {
                 printf("AND operator found in command: %s\n", command);
                 int total_operators = count_operators(command);
@@ -330,6 +340,8 @@ int main(int argc, char *argv[]) {
                     execute_command_file(command);
                 }
             }
+
+            // || Conditional Execution
             else if (has_or_operator(command)) {
                 printf("OR operator found in command: %s\n", command);
                 int total_operators = count_operators(command);
@@ -340,6 +352,8 @@ int main(int argc, char *argv[]) {
                     execute_command_file(command);
                 }
             }
+
+            // & Background Processing
             else if (has_background_process(command)) {
                 printf("Background process found in command: %s\n", command);
                 command[strlen(command) - 1] = '\0'; // Remove the '&' character
@@ -349,6 +363,8 @@ int main(int argc, char *argv[]) {
                 // Bring the last background process to the foreground
                 bring_background_process_to_foreground();
             }
+
+            // DONE ; Sequential execution
             else if (has_sequential_execution(command)) {
                 char **sequential_commands = split_by_operator(command, ";");
                 if (special_character_count > 5) {
@@ -368,6 +384,8 @@ int main(int argc, char *argv[]) {
                 // Free memory allocated for command array
                 free(sequential_commands);
             }
+
+            // DONE Plain command
             else {
                 // If no special characters found, print the command itself
                 printf("Plain command: %s\n", command);

@@ -298,6 +298,45 @@ void execute_output_redirection_command(const char *full_command, const char *ou
     }
 }
 
+void execute_output_append_redirection_command(const char *full_command, const char *output_file) {
+    // Fork a new process
+    pid_t pid = fork();
+
+    if (pid == -1) {
+        // Fork failed
+        perror("fork");
+        exit(EXIT_FAILURE);
+    } else if (pid == 0) {
+        // Child process
+
+        // Open the output file for appending
+        int fd = open(output_file, O_WRONLY | O_CREAT | O_APPEND, 0644);
+        if (fd == -1) {
+            perror("open");
+            exit(EXIT_FAILURE);
+        }
+
+        // Redirect stdout to the output file
+        if (dup2(fd, STDOUT_FILENO) == -1) {
+            perror("dup2");
+            exit(EXIT_FAILURE);
+        }
+
+        // Close the file descriptor
+        close(fd);
+
+        // Execute the command
+        execlp("sh", "sh", "-c", full_command, NULL);
+
+        // If execlp fails, print an error message
+        perror("execlp");
+        exit(EXIT_FAILURE);
+    } else {
+        // Parent process: wait for the child to finish
+        int status;
+        waitpid(pid, &status, 0);
+    }
+}
 
 int main(int argc, char *argv[]) {
     char command[MAX_COMMAND_LENGTH];
@@ -356,7 +395,6 @@ int main(int argc, char *argv[]) {
             // DONE > Redirection
             // echo "doo doo" > output.txt
             else if (has_output_redirect(command)) {
-                printf("Output redirection found in command: %s\n", command);
                 char **output_redirection_commands = split_by_operator(command, ">");
                 if (special_character_count > 2) {
                     printf("Maximum 1 > can be handled at a time\n");
@@ -372,10 +410,21 @@ int main(int argc, char *argv[]) {
                 free(output_redirection_commands);
             }
 
-            // >> Redirection
+            // DONE >> Redirection
             else if (has_append_redirect(command)) {
-                printf("Append redirection found in command: %s\n", command);
-                execute_command_file(command);
+                char **output_append_redirection_commands = split_by_operator(command, ">");
+                if (special_character_count > 2) {
+                    printf("Maximum 1 >> can be handled at a time\n");
+                } else if (special_character_count == 2) {
+                    execute_output_append_redirection_command(
+                            output_append_redirection_commands[0],
+                            output_append_redirection_commands[1]
+                    );
+                } else {
+                    printf("Invalid output append redirection command");
+                }
+                // Free memory allocated for command array
+                free(output_append_redirection_commands);
             }
 
             // < Redirection

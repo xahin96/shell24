@@ -338,6 +338,46 @@ void execute_output_append_redirection_command(const char *full_command, const c
     }
 }
 
+void execute_input_redirection_command(const char *full_command, const char *input_file) {
+    // Fork a new process
+    pid_t pid = fork();
+
+    if (pid == -1) {
+        // Fork failed
+        perror("fork");
+        exit(EXIT_FAILURE);
+    } else if (pid == 0) {
+        // Child process
+
+        // Open the input file for reading
+        int fd = open(input_file, O_RDONLY);
+        if (fd == -1) {
+            perror("open");
+            exit(EXIT_FAILURE);
+        }
+
+        // Redirect stdin to the input file
+        if (dup2(fd, STDIN_FILENO) == -1) {
+            perror("dup2");
+            exit(EXIT_FAILURE);
+        }
+
+        // Close the file descriptor
+        close(fd);
+
+        // Execute the command
+        execlp("sh", "sh", "-c", full_command, NULL);
+
+        // If execlp fails, print an error message
+        perror("execlp");
+        exit(EXIT_FAILURE);
+    } else {
+        // Parent process: wait for the child to finish
+        int status;
+        waitpid(pid, &status, 0);
+    }
+}
+
 int main(int argc, char *argv[]) {
     char command[MAX_COMMAND_LENGTH];
     int print_prompt = 1; // Flag to control prompt printing
@@ -427,10 +467,21 @@ int main(int argc, char *argv[]) {
                 free(output_append_redirection_commands);
             }
 
-            // < Redirection
+            // DONE < Redirection
             else if (has_input_redirect(command)) {
-                printf("Input redirection found in command: %s\n", command);
-                execute_command_file(command);
+                char **input_redirection_commands = split_by_operator(command, "<");
+                if (special_character_count > 2) {
+                    printf("Maximum 1 < can be handled at a time\n");
+                } else if (special_character_count == 2) {
+                    execute_input_redirection_command(
+                            input_redirection_commands[0],
+                            input_redirection_commands[1]
+                    );
+                } else {
+                    printf("Invalid input redirection command");
+                }
+                // Free memory allocated for command array
+                free(input_redirection_commands);
             }
 
             // && Conditional Execution

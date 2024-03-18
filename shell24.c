@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <fcntl.h> // Include fcntl.h for open function
+#include <signal.h>
 
 
 #define MAX_TOTAL_LENGTH 10000 // Adjust this according to your needs
@@ -13,6 +14,61 @@
 int special_space_count = 0;
 //int special_and_or_count = 0;
 int special_character_count = 0;
+pid_t background_pid;
+
+
+void execute_command_in_background(char *command) {
+    // Fork to create a new process
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("fork");
+        exit(EXIT_FAILURE);
+    }
+
+    if (pid == 0) {
+        // Child process
+        // Detach from the controlling terminal
+        if (setsid() == -1) {
+            perror("setsid");
+            exit(EXIT_FAILURE);
+        }
+
+        // Execute the command in the background
+        if (system(command) == -1) {
+            perror("system");
+            exit(EXIT_FAILURE);
+        }
+        // This part of code will be reached only if system call fails
+        exit(EXIT_FAILURE);
+    } else {
+        // Parent process
+        // Store the PID of the background process
+        background_pid = pid;
+        // Print background process info
+        printf("Background process started with PID: %d\n", pid);
+        // Wait for the child process to terminate to prevent zombie processes
+        waitpid(pid, NULL, WNOHANG);
+    }
+}
+
+void bring_background_process_to_foreground() {
+    if (background_pid == -1) {
+        printf("No background process to bring to foreground\n");
+        return;
+    }
+
+    // Send SIGCONT signal to the background process to bring it to the foreground
+    if (kill(background_pid, SIGCONT) == -1) {
+        perror("kill");
+        return;
+    }
+
+    // Wait for the background process to finish and reclaim the terminal
+    waitpid(background_pid, NULL, 0);
+
+    // Reset the background PID
+    background_pid = -1;
+}
 
 // Function for concatenating files and printing the content
 // receives the list of file names a parameter
@@ -43,36 +99,57 @@ void concatenate_files(const char **fileNames) {
 
 // Function for executing commands that contains >, >> & <
 void execute_command_file(char *command) {
-    system(command);
+//    system(command);
+    char *args[MAX_COMMAND_LENGTH]; // Array to store command and its arguments
+    int i = 0;
+
+    // Tokenize the command string
+    char *token = strtok(command, " ");
+    while (token != NULL) {
+        args[i++] = token;
+        token = strtok(NULL, " ");
+    }
+    args[i] = NULL; // Null-terminate the argument list
+
+    // Execute the command using execvp
+    if (execvp(args[0], args) == -1) {
+        perror("execvp");
+        exit(EXIT_FAILURE);
+    }
 }
 
-// Function to split command based on OR operator
-char **split_by_operator(char *command, char *special_character) {
+char **split_by_operator(const char *command, const char *special_character) {
     special_character_count = 0;
     char *token;
+    char *command_copy = strdup(command); // Create a copy of the command
     char **commands = malloc(MAX_COMMAND_LENGTH * sizeof(char *));
 
-    // Split command by "||" and store each command in the array
-    token = strtok(command, special_character);
+    // Split command by the special character and store each command in the array
+    token = strtok(command_copy, special_character);
     while (token != NULL) {
-        commands[special_character_count++] = token;
+        commands[special_character_count++] = strdup(token); // Create a copy of each token
         token = strtok(NULL, special_character);
     }
     commands[special_character_count] = NULL; // Null-terminate the array
+
+    free(command_copy); // Free the copy of the command
     return commands;
 }
-char **split_by_space_operator(char *command, char *special_character) {
+char **split_by_space_operator(const char *command, const char *special_character) {
     special_space_count = 0;
     char *token;
+    char *command_copy = strdup(command); // Create a copy of the command
     char **commands = malloc(MAX_COMMAND_LENGTH * sizeof(char *));
 
     // Split command by "||" and store each command in the array
-    token = strtok(command, special_character);
+    token = strtok(command_copy, special_character);
     while (token != NULL) {
-        commands[special_space_count++] = token;
+        commands[special_space_count++] = strdup(token); // Create a copy of each token
         token = strtok(NULL, special_character);
     }
     commands[special_space_count] = NULL; // Null-terminate the array
+
+    free(command_copy); // Free the copy of the command
     return commands;
 }
 
@@ -143,9 +220,42 @@ int has_sequential_execution(char *command) {
     return strchr(command, ';') != NULL;
 }
 
-void execute_command(char *command) {
-    // Placeholder for actual execution logic
-    printf("Executing command: %s\n", command);
+void execute_command_sequence(const char *full_command) {
+    // Allocate memory for a copy of the full command
+    char command[strlen(full_command) + 1];
+    strcpy(command, full_command);
+
+    // Allocate memory for arguments array
+    char *args[strlen(full_command) / 2 + 1]; // Rough estimate of maximum number of arguments
+    int argc = 0;
+
+    // Tokenize the command based on spaces, preserving quoted arguments
+    char *token = strtok(command, " ");
+    while (token != NULL) {
+        args[argc++] = token;
+        token = strtok(NULL, " ");
+    }
+    args[argc] = NULL;  // Terminate the array with NULL
+
+    // Fork a new process
+    pid_t pid = fork();
+
+    if (pid == -1) {
+        // Fork failed
+        perror("fork");
+        exit(EXIT_FAILURE);
+    } else if (pid == 0) {
+        // Child process: execute the command
+        execvp(args[0], args);
+
+        // If execvp fails, print an error message
+        perror("execvp");
+        exit(EXIT_FAILURE);
+    } else {
+        // Parent process: wait for the child to finish
+        int status;
+        waitpid(pid, &status, 0);
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -180,19 +290,20 @@ int main(int argc, char *argv[]) {
                 execlp("./shell24", "./shell24", "newt", NULL);
                 exit(EXIT_SUCCESS); // Exit successfully to prevent further execution in child
             }
-        } else {
+        }
+        else {
             // Search for special characters
             if (has_hash(command)) {
                 //a.txt#b.txt#c.txt#d.txt#e.txt#f.txt#g.txt
                 // Split command by OR operator
-                char **or_commands = split_by_operator(command, "#");
+                char **hash_commands = split_by_operator(command, "#");
                 if (special_character_count > 5) {
                     printf("Maximum 5 # can be handled at a time\n");
                 } else {
-                    concatenate_files(or_commands);
+                    concatenate_files(hash_commands);
                 }
                 // Free memory allocated for command array
-                free(or_commands);
+                free(hash_commands);
             }
             else if (has_pipe(command)) {
                 printf("Pipe found in command: %s\n", command);
@@ -231,6 +342,12 @@ int main(int argc, char *argv[]) {
             }
             else if (has_background_process(command)) {
                 printf("Background process found in command: %s\n", command);
+                command[strlen(command) - 1] = '\0'; // Remove the '&' character
+                execute_command_in_background(command);
+            }
+            else if (strcmp(command, "fg") == 0) {
+                // Bring the last background process to the foreground
+                bring_background_process_to_foreground();
             }
             else if (has_sequential_execution(command)) {
                 char **sequential_commands = split_by_operator(command, ";");
@@ -243,7 +360,7 @@ int main(int argc, char *argv[]) {
                             printf("Maximum 5 args can be handled at a time\n");
                             break;
                         } else {
-                            execute_command_file(sequential_commands[i]);
+                            execute_command_sequence(sequential_commands[i]);
                         }
                         free(specific_command);
                     }
@@ -254,6 +371,7 @@ int main(int argc, char *argv[]) {
             else {
                 // If no special characters found, print the command itself
                 printf("Plain command: %s\n", command);
+                execute_command_sequence(command);
             }
         }
         // Reset the prompt printing flag for the next iteration

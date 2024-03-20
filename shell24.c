@@ -70,31 +70,35 @@ void bring_background_process_to_foreground() {
     background_pid = -1;
 }
 
-// Function for concatenating files and printing the content
-// receives the list of file names a parameter
 void concatenate_files(const char **fileNames) {
-    char buffer[MAX_TOTAL_LENGTH]; // Buffer to store concatenated content
-    buffer[0] = '\0'; // Initialize buffer as an empty string
-
-    // Loop through each file name
-    for (int i = 0; i < special_character_count; i++) {
-        // Open file for reading
-        FILE *file = fopen(fileNames[i], "r");
-        if (file == NULL) {
-            fprintf(stderr, "Failed to open file: %s\n", fileNames[i]);
-            continue; // Skip to next file if opening fails
-        }
-        // Read content of the file and append it to the buffer
-        char line[MAX_FILENAME_LENGTH];
-        while (fgets(line, MAX_FILENAME_LENGTH, file) != NULL) {
-            strcat(buffer, line);
-        }
-        // Close the file
-        fclose(file);
+    // Fork to create a new process
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("fork");
+        exit(EXIT_FAILURE);
     }
 
-    // Print the concatenated content
-    printf("%s\n", buffer);
+    if (pid == 0) {
+        // Child process
+        // Build the argument list for execvp
+        char *args[special_character_count + 2]; // Add one for the command name and one for NULL terminator
+        args[0] = "cat"; // Command name
+        for (int i = 0; i < special_character_count; i++) {
+            args[i + 1] = strdup(fileNames[i]); // File names
+        }
+        args[special_character_count + 1] = NULL; // Null-terminate the argument list
+
+        // Execute the cat command
+        if (execvp(args[0], args) == -1) {
+            perror("execvp");
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        // Parent process
+        // Wait for the child process to finish
+        int status;
+        waitpid(pid, &status, 0);
+    }
 }
 
 // Function for executing commands that contains >, >> & <
@@ -399,6 +403,79 @@ void execute_input_redirection_command(const char *full_command, const char *inp
     }
 }
 
+void execute_piped_commands(char *command) {
+    char *commands[MAX_PIPES]; // Array to store individual commands
+    int num_pipes = 0; // Count of pipes found
+
+    // Tokenize the command by pipe character
+    char *token = strtok(command, "|");
+    while (token != NULL && num_pipes < MAX_PIPES) {
+        commands[num_pipes++] = token;
+        token = strtok(NULL, "|");
+    }
+
+    // Set up pipes
+    int pipes[num_pipes - 1][2]; // Array to hold pipe file descriptors
+
+    // Create pipes
+    for (int i = 0; i < num_pipes - 1; i++) {
+        if (pipe(pipes[i]) == -1) {
+            perror("pipe");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    // Fork processes for each command
+    for (int i = 0; i < num_pipes; i++) {
+        pid_t pid = fork();
+        if (pid == -1) {
+            perror("fork");
+            exit(EXIT_FAILURE);
+        } else if (pid == 0) {
+            // Child process
+
+            // Close unused read ends of pipes
+            for (int j = 0; j < num_pipes - 1; j++) {
+                if (j != i - 1 && j != i) {
+                    close(pipes[j][0]);
+                    close(pipes[j][1]);
+                }
+            }
+
+            // Redirect stdin if not the first command
+            if (i != 0) {
+                close(STDIN_FILENO);
+                dup(pipes[i - 1][0]);
+                close(pipes[i - 1][0]);
+                close(pipes[i - 1][1]);
+            }
+
+            // Redirect stdout if not the last command
+            if (i != num_pipes - 1) {
+                close(STDOUT_FILENO);
+                dup(pipes[i][1]);
+                close(pipes[i][0]);
+                close(pipes[i][1]);
+            }
+
+            // Execute the command
+            execute_command_sequence(commands[i]);
+            exit(EXIT_SUCCESS); // Child process exits after command execution
+        }
+    }
+
+    // Close all pipe descriptors in the parent process
+    for (int i = 0; i < num_pipes - 1; i++) {
+        close(pipes[i][0]);
+        close(pipes[i][1]);
+    }
+
+    // Wait for all child processes to finish
+    for (int i = 0; i < num_pipes; i++) {
+        wait(NULL);
+    }
+}
+
 int main(int argc, char *argv[]) {
     char command[MAX_COMMAND_LENGTH];
     int print_prompt = 1; // Flag to control prompt printing
@@ -435,7 +512,6 @@ int main(int argc, char *argv[]) {
         else {
 
             // DONE # Text file (.txt) concatenation
-            // TODO: use exec
             if (has_hash(command)) {
                 //a.txt#b.txt#c.txt#d.txt#e.txt#f.txt#g.txt
                 // Split command by OR operator
@@ -453,6 +529,7 @@ int main(int argc, char *argv[]) {
             // TODO: not complete
             else if (has_pipe(command)) {
                 printf("Pipe found in command: %s\n", command);
+                execute_piped_commands(command);
             }
 
             // DONE > Redirection

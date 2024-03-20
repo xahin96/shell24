@@ -6,7 +6,7 @@
 #include <fcntl.h> // Include fcntl.h for open function
 #include <signal.h>
 
-
+#define MAX_PIPES 6
 #define MAX_TOTAL_LENGTH 10000 // Adjust this according to your needs
 #define MAX_COMMAND_LENGTH 100
 #define MAX_FILENAME_LENGTH 1000
@@ -15,6 +15,7 @@ pid_t background_pid;
 int special_space_count = 0;
 int special_character_count = 0;
 
+int one_pipe_counter = 0;
 
 void execute_command_in_background(char *command) {
     // Fork to create a new process
@@ -98,7 +99,6 @@ void concatenate_files(const char **fileNames) {
 
 // Function for executing commands that contains >, >> & <
 void execute_command_file(char *command) {
-//    system(command);
     char *args[MAX_COMMAND_LENGTH]; // Array to store command and its arguments
     int i = 0;
 
@@ -115,6 +115,27 @@ void execute_command_file(char *command) {
         perror("execvp");
         exit(EXIT_FAILURE);
     }
+}
+
+// Function for executing commands that contains >, >> & <
+char ** command_splitter(char *command) {
+    one_pipe_counter = 0;
+    char **args = (char **)malloc(100 * sizeof(char *)); // Allocate memory for args array
+
+    if (args == NULL) {
+        perror("Memory allocation failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Tokenize the command string
+    char *token = strtok(command, " ");
+    while (token != NULL) {
+        args[one_pipe_counter++] = token;
+        token = strtok(NULL, " ");
+    }
+    args[one_pipe_counter] = NULL; // Null-terminate the argument list
+
+    return args;
 }
 
 char **split_by_operator(const char *command, const char *special_character) {
@@ -407,13 +428,14 @@ int main(int argc, char *argv[]) {
             // Fork to create a new shell24
             if (fork() == 0) {
                 // Child process starts a new shell24
-                execlp("./shell24", "./shell24", "newt", NULL);
+                execlp("xterm", "xterm", "-e", "./shell24", "newt", NULL);
                 exit(EXIT_SUCCESS); // Exit successfully to prevent further execution in child
             }
         }
         else {
 
             // DONE # Text file (.txt) concatenation
+            // TODO: use exec
             if (has_hash(command)) {
                 //a.txt#b.txt#c.txt#d.txt#e.txt#f.txt#g.txt
                 // Split command by OR operator
@@ -428,6 +450,7 @@ int main(int argc, char *argv[]) {
             }
 
             // | Piping
+            // TODO: not complete
             else if (has_pipe(command)) {
                 printf("Pipe found in command: %s\n", command);
             }
@@ -485,6 +508,7 @@ int main(int argc, char *argv[]) {
             }
 
             // && Conditional Execution
+            // Todo: not complete
             else if (has_and_operator(command)) {
                 printf("AND operator found in command: %s\n", command);
                 int total_operators = count_operators(command);
@@ -497,6 +521,7 @@ int main(int argc, char *argv[]) {
             }
 
             // || Conditional Execution
+            // Todo: not complete
             else if (has_or_operator(command)) {
                 printf("OR operator found in command: %s\n", command);
                 int total_operators = count_operators(command);
@@ -509,6 +534,7 @@ int main(int argc, char *argv[]) {
             }
 
             // & Background Processing
+            // Todo: not complete
             else if (has_background_process(command)) {
                 printf("Background process found in command: %s\n", command);
                 command[strlen(command) - 1] = '\0'; // Remove the '&' character

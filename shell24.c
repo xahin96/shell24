@@ -526,14 +526,11 @@ int main(int argc, char *argv[]) {
             }
 
             // | Piping
-            // TODO: not complete
             else if (has_pipe(command)) {
-                printf("Pipe found in command: %s\n", command);
                 execute_piped_commands(command);
             }
 
             // DONE > Redirection
-            // echo "doo doo" > output.txt
             else if (has_output_redirect(command)) {
                 char **output_redirection_commands = split_by_operator(command, ">");
                 if (special_character_count > 2) {

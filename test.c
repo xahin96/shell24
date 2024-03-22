@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/wait.h>
 
 void replaceCharacter(char *str, char oldChar, char newChar) {
     int i;
@@ -45,7 +44,7 @@ int execute_command_sequence_status(const char *full_command) {
 
         // If execvp fails, print an error message and return failure status
         perror("execvp");
-        exit(EXIT_FAILURE); // Terminate the child process
+        return EXIT_FAILURE;
     } else {
         // Parent process: wait for the child to finish
         int status;
@@ -151,7 +150,6 @@ char** get_subcommands(char *command) {
     }
 
     // Extract the last subcommand
-
     int sub_len = end - start;
     subcommands[count] = malloc(sub_len + 1);
     if (subcommands[count] == NULL) {
@@ -170,19 +168,19 @@ char** get_subcommands(char *command) {
 
 int main() {
     // Example command containing || and &&
-//    char command[] = "date || pwd || ls && date || pwd || date && date || pwd && pwd && date";
-    char command[] = "pwd || date && date || pwd";
+    char command[] = "datee || pwd || ls && date || pwd || date && date || pwd && pwd && datee";
 
     // Get the array of subcommands
     char** subcommands = get_subcommands(command);
 
     // Print each subcommand from the array
     for (int i = 0; subcommands[i] != NULL; i++) {
-//        printf("Subcommand_or %d: %s\n", i + 1, subcommands[i]);
-        char **subcommands_or = get_subcommands_by_or(subcommands[i]);
+        printf("Subcommand_or %d: %s\n", i + 1, subcommands[i]);
+        char **subcommands_or = get_subcommands_by_or(subcommands[i]); // Change this line
         for (int j = 0; subcommands_or[j] != NULL; j++) {
-            replaceCharacter(subcommands_or[j], '|', ' ');
-            replaceCharacter(subcommands_or[j], '&', ' ');
+            replaceCharacter(subcommands_or[j], '|', ' '); // Replace '|' with ' '
+            replaceCharacter(subcommands_or[j], '&', ' '); // Replace '|' with ' '
+//            printf("Subcommand_or %d: %s\n", j + 1, subcommands_or[j]);
             int status = execute_command_sequence_status(subcommands_or[j]);
             if (status == EXIT_SUCCESS) {
                 break;

@@ -3,71 +3,55 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#include <fcntl.h> // Include fcntl.h for open function
+#include <fcntl.h>
 #include <signal.h>
 
 #define MAX_PIPES 6
-#define MAX_TOTAL_LENGTH 10000 // Adjust this according to your needs
 #define MAX_COMMAND_LENGTH 100
-#define MAX_FILENAME_LENGTH 1000
 
 pid_t background_pid;
 int special_space_count = 0;
 int special_character_count = 0;
 
-int one_pipe_counter = 0;
+// Run a process in the run_in_background
+void run_in_background (char *command) {
+    printf("The program input by user will be run in the run_in_background\n");
+    // int argc;
+    // split_each_command(command, &argc);
+    printf("run_in_background process is %s\n", command);
 
-void execute_command_in_background(char *command) {
-    // Fork to create a new process
-    pid_t pid = fork();
-    if (pid == -1) {
-        perror("fork");
-        exit(EXIT_FAILURE);
+    int pid = fork();
+    // child
+    if ( pid == 0 ) {
+        printf("%d - %d - %d \n", getpid(), getppid(), getpgid(getpid()));
+        setsid();
+        printf("%d - %d - %d \n", getpid(), getppid(), getpgid(getpid()));
+        printf("The child process will be differentiated and run in the run_in_background\n");
+        execlp(command, command, NULL);
+        printf("Differentiation unsuccessful\n");
     }
-
-    if (pid == 0) {
-        // Child process
-        // Detach from the controlling terminal
-        if (setsid() == -1) {
-            perror("setsid");
-            exit(EXIT_FAILURE);
-        }
-
-        // Execute the command in the background
-        if (system(command) == -1) {
-            perror("system");
-            exit(EXIT_FAILURE);
-        }
-        // This part of code will be reached only if system call fails
-        exit(EXIT_FAILURE);
-    } else {
-        // Parent process
-        // Store the PID of the background process
+        // parent
+    else if (pid > 0) {
         background_pid = pid;
-        // Print background process info
-        printf("Background process started with PID: %d\n", pid);
-        // Wait for the child process to terminate to prevent zombie processes
-        waitpid(pid, NULL, WNOHANG);
+        kill(pid, SIGSTOP);
+        printf("run_in_background process pid = %d\n", pid);
+    } else {
+        printf("Fork failed\n");
     }
 }
 
-void bring_background_process_to_foreground() {
+// Bring a process back into the bring_to_foreground
+void bring_to_foreground () {
     if (background_pid == -1) {
-        printf("No background process to bring to foreground\n");
-        return;
+        printf("There is no run_in_background process\n");
+    } else {
+        if (fork()==0) {
+            kill(background_pid, SIGCONT);
+            background_pid = -1;
+        } else {
+            wait(NULL);
+        }
     }
-
-    // Send SIGCONT signal to the background process to bring it to the foreground
-    if (kill(background_pid, SIGCONT) == -1) {
-        perror("kill");
-        return;
-    }
-
-    // Wait for the background process to finish and reclaim the terminal
-    waitpid(background_pid, NULL, 0);
-
-    // Reset the background PID
-    background_pid = -1;
 }
 
 void concatenate_files(const char **fileNames) {
@@ -101,47 +85,6 @@ void concatenate_files(const char **fileNames) {
     }
 }
 
-// Function for executing commands that contains >, >> & <
-void execute_command_file(char *command) {
-    char *args[MAX_COMMAND_LENGTH]; // Array to store command and its arguments
-    int i = 0;
-
-    // Tokenize the command string
-    char *token = strtok(command, " ");
-    while (token != NULL) {
-        args[i++] = token;
-        token = strtok(NULL, " ");
-    }
-    args[i] = NULL; // Null-terminate the argument list
-
-    // Execute the command using execvp
-    if (execvp(args[0], args) == -1) {
-        perror("execvp");
-        exit(EXIT_FAILURE);
-    }
-}
-
-// Function for executing commands that contains >, >> & <
-char ** command_splitter(char *command) {
-    one_pipe_counter = 0;
-    char **args = (char **)malloc(100 * sizeof(char *)); // Allocate memory for args array
-
-    if (args == NULL) {
-        perror("Memory allocation failed");
-        exit(EXIT_FAILURE);
-    }
-
-    // Tokenize the command string
-    char *token = strtok(command, " ");
-    while (token != NULL) {
-        args[one_pipe_counter++] = token;
-        token = strtok(NULL, " ");
-    }
-    args[one_pipe_counter] = NULL; // Null-terminate the argument list
-
-    return args;
-}
-
 char **split_by_operator(const char *command, const char *special_character) {
     special_character_count = 0;
     char *token;
@@ -159,6 +102,7 @@ char **split_by_operator(const char *command, const char *special_character) {
     free(command_copy); // Free the copy of the command
     return commands;
 }
+
 char **split_by_space_operator(const char *command, const char *special_character) {
     special_space_count = 0;
     char *token;
@@ -646,7 +590,6 @@ void handle_and_or(char *command){
 
     // Print each subcommand from the array
     for (int i = 0; subcommands[i] != NULL; i++) {
-//        printf("Subcommand_or %d: %s\n", i + 1, subcommands[i]);
         char **subcommands_or = get_subcommands_by_or(subcommands[i]);
         for (int j = 0; subcommands_or[j] != NULL; j++) {
             replaceCharacter(subcommands_or[j], '|', ' ');
@@ -797,16 +740,16 @@ int main(int argc, char *argv[]) {
                 }
             }
 
-            // & Background Processing
-            // Todo: not complete
+            // DONE & Background Processing
             else if (has_background_process(command)) {
-                printf("Background process found in command: %s\n", command);
-                command[strlen(command) - 1] = '\0'; // Remove the '&' character
-                execute_command_in_background(command);
+                char **bg_commands = split_by_operator(command, " ");
+                run_in_background(bg_commands[0]);
+                free(bg_commands);
+
             }
             else if (strcmp(command, "fg") == 0) {
-                // Bring the last background process to the foreground
-                bring_background_process_to_foreground();
+                // Bring the last run_in_background process to the bring_to_foreground
+                bring_to_foreground();
             }
 
             // DONE ; Sequential execution

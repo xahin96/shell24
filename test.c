@@ -2,202 +2,116 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/wait.h>
+#include <signal.h>
 
-void replaceCharacter(char *str, char oldChar, char newChar) {
-    int i;
-    int length = strlen(str);
+#define MAX_COMMAND_LENGTH 100
 
-    for (i = 0; i < length; i++) {
-        if (str[i] == oldChar) {
-            str[i] = newChar;
-        }
-    }
+pid_t background_pid;
+
+void append_cwd () {
+
+    // Get the old PATH
+    char *oldPath = getenv("PATH");
+//    printf("oldPath: %s\n", oldPath);
+
+    // Get the path of current working directory
+    char *cwd;
+    char *buf;
+    long size;
+    size = pathconf(".", _PC_PATH_MAX);
+    buf = (char *)malloc((size_t)size);
+    cwd = getcwd(buf, (size_t)size);
+//    printf("cwd: %s\n", cwd);
+
+    // Combine the old Path and current working path
+    char *combinedPath = malloc(strlen(oldPath) + strlen(cwd));
+    sprintf(combinedPath, "%s:%s", oldPath, cwd);
+//    printf("combinedPath: %s\n", combinedPath);
+
+    // Set the combinedParh as the new Path
+    setenv("PATH", combinedPath, 1);
+
+    free(combinedPath);
 }
 
-int execute_command_sequence_status(const char *full_command) {
-    // Allocate memory for a copy of the full command
-    char command[strlen(full_command) + 1];
-    strcpy(command, full_command);
+int has_background_process(char *command) {
+    int length = strlen(command);
+    return length > 0 && command[length - 1] == '&';
+}
 
-    // Allocate memory for arguments array
-    char *args[strlen(full_command) / 2 + 1]; // Rough estimate of maximum number of arguments
-    int argc = 0;
+void run_in_background(char *command) {
+    printf("The program input by user will be run in the background\n");
+    printf("Background process command: %s\n", command); // Print the command being executed
 
-    // Tokenize the command based on spaces, preserving quoted arguments
-    char *token = strtok(command, " ");
-    while (token != NULL) {
-        args[argc++] = token;
-        token = strtok(NULL, " ");
+    int pid = fork();
+    // child
+    if (pid == 0) {
+        printf("%d - %d - %d \n", getpid(), getppid(), getpgid(getpid()));
+        setsid();
+        printf("%d - %d - %d \n", getpid(), getppid(), getpgid(getpid()));
+        printf("The child process will be differentiated and run in the background\n");
+//        if (execlp(command, command, NULL) == -1) {
+        if (execlp(command, command, NULL) == -1) {
+            perror("execlp");
+            exit(EXIT_FAILURE);
+        }
     }
-    args[argc] = NULL;  // Terminate the array with NULL
-
-    // Fork a new process
-    pid_t pid = fork();
-
-    if (pid == -1) {
-        // Fork failed
-        perror("fork");
-        return EXIT_FAILURE;
-    } else if (pid == 0) {
-        // Child process: execute the command
-        execvp(args[0], args);
-
-        // If execvp fails, print an error message and return failure status
-        perror("execvp");
-        return EXIT_FAILURE;
+        // parent
+    else if (pid > 0) {
+        background_pid = pid;
+        kill(pid, SIGSTOP);
+        printf("Background process pid = %d\n", pid);
     } else {
-        // Parent process: wait for the child to finish
-        int status;
-        waitpid(pid, &status, 0);
+        perror("fork");
+        printf("Fork failed\n");
+    }
+}
 
-        if (WIFEXITED(status)) {
-            // Child process terminated normally
-            return WEXITSTATUS(status);
+// Bring a process back into the bring_to_foreground
+void bring_to_foreground () {
+    if (background_pid == -1) {
+        printf("There is no run_in_background process\n");
+    } else {
+        if (fork()==0) {
+            kill(background_pid, SIGCONT);
+            background_pid = -1;
         } else {
-            // Child process terminated abnormally
-            return EXIT_FAILURE;
+            wait(NULL);
         }
     }
 }
 
-char** get_subcommands_by_or(char *command) {
-    // Allocate memory for an array of strings to hold subcommands
-    char** subcommands_or = malloc(sizeof(char*) * 100); // Assuming a maximum of 100 subcommands
-    if (subcommands_or == NULL) {
-        perror("Memory allocation failed");
-        exit(EXIT_FAILURE);
-    }
+int main(int argc, char *argv[]) {
+//    append_cwd();
+    char command[MAX_COMMAND_LENGTH];
+    int print_prompt = 1; // Flag to control prompt printing
 
-    int count = 0;
-    char *start = command;
-    char *end = command;
-    int length = strlen(command);
-    int i;
+    while (1) {
+        if (print_prompt) {
+            printf("\nshell24$ ");
+            fflush(stdout);
+        }
+        if (fgets(command, sizeof(command), stdin) == NULL) {
+            fprintf(stderr, "Error reading command\n");
+            continue;
+        }
+        command[strcspn(command, "\n")] = '\0';
 
-    for (i = 0; i < length; i++) {
-        if (command[i] == '|' && command[i + 1] == '|') {
-            // Found "||", extract the subcommand
-            int sub_len = end - start;
-            subcommands_or[count] = malloc(sub_len + 1);
-            if (subcommands_or[count] == NULL) {
-                perror("Memory allocation failed");
-                exit(EXIT_FAILURE);
+        if (strcmp(command, "newt") == 0) {
+            if (fork() == 0) {
+                execlp("xterm", "xterm", "-e", "./shell24", "newt", NULL);
+                exit(EXIT_SUCCESS);
             }
-            strncpy(subcommands_or[count], start, sub_len);
-            subcommands_or[count][sub_len] = '\0';
-            replaceCharacter(subcommands_or[count], '&', ' '); // Replace '&' with ' '
-            count++;
-
-            // Move start pointer to the beginning of the next command
-            start = &command[i + 2];
-            end = start;
         } else {
-            end++;
-        }
-    }
-
-    // Extract the last subcommand
-    int sub_len = end - start;
-    subcommands_or[count] = malloc(sub_len + 1);
-    if (subcommands_or[count] == NULL) {
-        perror("Memory allocation failed");
-        exit(EXIT_FAILURE);
-    }
-    strncpy(subcommands_or[count], start, sub_len);
-    subcommands_or[count][sub_len] = '\0';
-    replaceCharacter(subcommands_or[count], '&', ' '); // Replace '&' with ' '
-    count++;
-
-    // Null-terminate the array
-    subcommands_or[count] = NULL;
-
-    return subcommands_or;
-}
-
-char** get_subcommands(char *command) {
-    // Allocate memory for an array of strings to hold subcommands
-    char** subcommands = malloc(sizeof(char*) * 100); // Assuming a maximum of 100 subcommands
-    if (subcommands == NULL) {
-        perror("Memory allocation failed");
-        exit(EXIT_FAILURE);
-    }
-
-    int count = 0;
-    char *start = command;
-    char *end = command;
-    int length = strlen(command);
-    int i;
-
-    for (i = 0; i < length; i++) {
-        if (command[i] == '&' && command[i + 1] == '&') {
-            // Found "&&", extract the subcommand
-            int sub_len = end - start;
-            subcommands[count] = malloc(sub_len + 1);
-            if (subcommands[count] == NULL) {
-                perror("Memory allocation failed");
-                exit(EXIT_FAILURE);
-            }
-            strncpy(subcommands[count], start, sub_len);
-            subcommands[count][sub_len] = '\0';
-            count++;
-
-            // Move start pointer to the beginning of the next command
-            start = &command[i + 2];
-            end = start;
-        } else {
-            end++;
-        }
-    }
-
-    // Extract the last subcommand
-    int sub_len = end - start;
-    subcommands[count] = malloc(sub_len + 1);
-    if (subcommands[count] == NULL) {
-        perror("Memory allocation failed");
-        exit(EXIT_FAILURE);
-    }
-    strncpy(subcommands[count], start, sub_len);
-    subcommands[count][sub_len] = '\0';
-    count++;
-
-    // Null-terminate the array
-    subcommands[count] = NULL;
-
-    return subcommands;
-}
-
-int main() {
-    // Example command containing || and &&
-    char command[] = "datee || pwd || ls && date || pwd || date && date || pwd && pwd && datee";
-
-    // Get the array of subcommands
-    char** subcommands = get_subcommands(command);
-
-    // Print each subcommand from the array
-    for (int i = 0; subcommands[i] != NULL; i++) {
-        printf("Subcommand_or %d: %s\n", i + 1, subcommands[i]);
-        char **subcommands_or = get_subcommands_by_or(subcommands[i]); // Change this line
-        for (int j = 0; subcommands_or[j] != NULL; j++) {
-            replaceCharacter(subcommands_or[j], '|', ' '); // Replace '|' with ' '
-            replaceCharacter(subcommands_or[j], '&', ' '); // Replace '|' with ' '
-//            printf("Subcommand_or %d: %s\n", j + 1, subcommands_or[j]);
-            int status = execute_command_sequence_status(subcommands_or[j]);
-            if (status == EXIT_SUCCESS) {
-                break;
+            if (has_background_process(command)) {
+                command[strlen(command) - 1] = '\0'; // Remove the '&' character
+                run_in_background(command);
+            } else if (strcmp(command, "fg") == 0) {
+                bring_to_foreground();
             }
         }
-        // Free memory allocated for subcommands_or
-        for (int k = 0; subcommands_or[k] != NULL; k++) {
-            free(subcommands_or[k]);
-        }
-        free(subcommands_or);
+        print_prompt = 1;
     }
-
-    // Free memory allocated for subcommands
-    for (int i = 0; subcommands[i] != NULL; i++) {
-        free(subcommands[i]);
-    }
-    free(subcommands);
-
     return 0;
 }

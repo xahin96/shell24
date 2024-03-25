@@ -402,18 +402,25 @@ void execute_input_redirection_command(const char *full_command, const char *inp
     }
 }
 
+
+// function for executing piped command
 void execute_piped_commands(char *command) {
     char *commands[MAX_ALLOWED_PIPES];
     int num_pipes = 0;
 
+    // tokenizing the command with |
     char *sub_command_string = strtok(command, "|");
+    // checking if the pipe number is correct or not before storing in array
+    // as long as tokens are found
     while (sub_command_string != NULL && num_pipes < MAX_ALLOWED_PIPES) {
         commands[num_pipes++] = sub_command_string;
         sub_command_string = strtok(NULL, "|");
     }
 
+    // creating the pipe file descriptor array
     int pipes[num_pipes - 1][2];
 
+    // generating the pipes with the file descriptors
     for (int i = 0; i < num_pipes - 1; i++) {
         if (pipe(pipes[i]) == -1) {
             perror("pipe");
@@ -421,12 +428,17 @@ void execute_piped_commands(char *command) {
         }
     }
 
+    // using for loop to loop over all the subcommands
     for (int i = 0; i < num_pipes; i++) {
+        // creating fork to execute command in child
         pid_t pid = fork();
         if (pid == -1) {
             perror("fork");
             exit(EXIT_FAILURE);
-        } else if (pid == 0) {
+        }
+        // child block
+        else if (pid == 0) {
+            // closing all the pipe file descriptors that are not needed in current loop
             for (int j = 0; j < num_pipes - 1; j++) {
                 if (j != i - 1 && j != i) {
                     close(pipes[j][0]);
@@ -434,6 +446,9 @@ void execute_piped_commands(char *command) {
                 }
             }
 
+            // i != 0 is true if the current command is not the first command
+            // in that case the input of current process will read from
+            // previous process. Using dup to revert back to that output
             if (i != 0) {
                 close(STDIN_FILENO);
                 dup(pipes[i - 1][0]);
@@ -441,6 +456,8 @@ void execute_piped_commands(char *command) {
                 close(pipes[i - 1][1]);
             }
 
+            // if current command is not the last command then the standard output is
+            // redirected to write to the write end of this process
             if (i != num_pipes - 1) {
                 close(STDOUT_FILENO);
                 dup(pipes[i][1]);
@@ -448,16 +465,19 @@ void execute_piped_commands(char *command) {
                 close(pipes[i][1]);
             }
 
+            // calling the execute method for running the command
             execute_command_sequence(commands[i]);
             exit(EXIT_SUCCESS);
         }
     }
 
+    // closing all the pipes finally
     for (int i = 0; i < num_pipes - 1; i++) {
         close(pipes[i][0]);
         close(pipes[i][1]);
     }
 
+    // waiting for child to finish
     for (int i = 0; i < num_pipes; i++) {
         wait(NULL);
     }

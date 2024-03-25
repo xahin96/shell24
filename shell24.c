@@ -16,29 +16,46 @@ int special_space_count = 0;
 // For counting the total number of special character
 int special_character_count = 0;
 
+
+// function for running a program in background
 void run_in_background (char *command) {
+    // forking to create a child process
     int pid = fork();
+    // the child process
     if ( pid == 0 ) {
+        // setting a new session for child and setting the PGID to its
+        // own PID
         setsid();
+        // running the program
         execlp(command, command, NULL);
         perror("execlp");
     }
+    // the parent process
     else if (pid > 0) {
+        // storing the pid of the child process so that it can be brought
+        // back to foreground later
         background_pid = pid;
+        // sending SIGSTOP to send the child to background finally
         kill(pid, SIGSTOP);
     } else {
         printf("Fork failed\n");
     }
 }
 
+
+// function for bringing specific program to foreground
 void bring_to_foreground () {
     if (background_pid == -1) {
         printf("There is no run_in_background process\n");
     } else {
+        // forking and selecting child process to execute command
         if (fork()==0) {
+            // sending SIGCONT to bring the program to foreground
             kill(background_pid, SIGCONT);
+            // resetting the background_pid for future use
             background_pid = -1;
         } else {
+            // waiting from parent process
             wait(NULL);
         }
     }

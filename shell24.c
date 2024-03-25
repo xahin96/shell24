@@ -245,6 +245,8 @@ int has_sequential_execution(char *command) {
     return strchr(command, ';') != NULL;
 }
 
+
+// function for executing a command sequentially
 void execute_command_sequence(const char *full_command) {
     char command[strlen(full_command) + 1];
     strcpy(command, full_command);
@@ -252,43 +254,57 @@ void execute_command_sequence(const char *full_command) {
     char *args[strlen(full_command) / 2 + 1];
     int argc = 0;
 
+    // splitting the command with space for tokenization
     char *sub_command_string = strtok(command, " ");
     while (sub_command_string != NULL) {
+        // generating the array with all the command parts
         args[argc++] = sub_command_string;
         sub_command_string = strtok(NULL, " ");
     }
+    // null terminating
     args[argc] = NULL;
 
+    // creating child for running the command
     pid_t pid = fork();
 
     if (pid == -1) {
         perror("fork");
         exit(EXIT_FAILURE);
-    } else if (pid == 0) {
+    }
+    // child process
+    else if (pid == 0) {
+        // executing the prepared command
         execvp(args[0], args);
 
         perror("execvp");
         exit(EXIT_FAILURE);
     } else {
         int status;
+        // waiting for the child
         waitpid(pid, &status, 0);
     }
 }
 
+
+// function for executing output redirection operator
 void execute_output_redirection_command(const char *full_command, const char *output_file) {
+    // forking to run command from child
     pid_t pid = fork();
 
     if (pid == -1) {
         perror("fork");
         exit(EXIT_FAILURE);
-    } else if (pid == 0) {
-        printf("output_file: %s\n", output_file);
+    }
+    // child process
+    else if (pid == 0) {
+        // opening the provided file to write in
         int fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
         if (fd == -1) {
             perror("open");
             exit(EXIT_FAILURE);
         }
 
+        // using dup to redirect the STDOUT_FILENO to the file
         if (dup2(fd, STDOUT_FILENO) == -1) {
             perror("dup2");
             exit(EXIT_FAILURE);
@@ -296,29 +312,38 @@ void execute_output_redirection_command(const char *full_command, const char *ou
 
         close(fd);
 
+        // running the code with the command to write the data
         execlp("sh", "sh", "-c", full_command, NULL);
 
         perror("execlp");
         exit(EXIT_FAILURE);
     } else {
         int status;
+        // waiting for child process
         waitpid(pid, &status, 0);
     }
 }
 
+
+// function for executing output append redirection operator
 void execute_output_append_redirection_command(const char *full_command, const char *output_file) {
+    // forking to run command from child
     pid_t pid = fork();
 
     if (pid == -1) {
         perror("fork");
         exit(EXIT_FAILURE);
-    } else if (pid == 0) {
+    }
+    // child process
+    else if (pid == 0) {
+        // opening the provided file to append in
         int fd = open(output_file, O_WRONLY | O_CREAT | O_APPEND, 0644);
         if (fd == -1) {
             perror("open");
             exit(EXIT_FAILURE);
         }
 
+        // using dup to redirect the STDOUT_FILENO to the file
         if (dup2(fd, STDOUT_FILENO) == -1) {
             perror("dup2");
             exit(EXIT_FAILURE);
@@ -326,23 +351,30 @@ void execute_output_append_redirection_command(const char *full_command, const c
 
         close(fd);
 
+        // running the code with the command to write the data
         execlp("sh", "sh", "-c", full_command, NULL);
 
         perror("execlp");
         exit(EXIT_FAILURE);
     } else {
         int status;
+        // waiting for child process
         waitpid(pid, &status, 0);
     }
 }
 
+
+// function for executing input redirection operator
 void execute_input_redirection_command(const char *full_command, const char *input_file) {
+    // forking to run command from child
     pid_t pid = fork();
 
     if (pid == -1) {
         perror("fork");
         exit(EXIT_FAILURE);
-    } else if (pid == 0) {
+    }
+    // child process
+    else if (pid == 0) {
 
         int fd = open(input_file, O_RDONLY);
         if (fd == -1) {
@@ -350,6 +382,7 @@ void execute_input_redirection_command(const char *full_command, const char *inp
             exit(EXIT_FAILURE);
         }
 
+        // using dup to redirect the STDOUT_FILENO to the file
         if (dup2(fd, STDIN_FILENO) == -1) {
             perror("dup2");
             exit(EXIT_FAILURE);
@@ -357,12 +390,14 @@ void execute_input_redirection_command(const char *full_command, const char *inp
 
         close(fd);
 
+        // running the code with the command to write the data
         execlp("sh", "sh", "-c", full_command, NULL);
 
         perror("execlp");
         exit(EXIT_FAILURE);
     } else {
         int status;
+        // waiting for child process
         waitpid(pid, &status, 0);
     }
 }
@@ -442,34 +477,51 @@ void replace_character(char *str, char old_char, char new_char) {
     }
 }
 
+
+// for executing the commands in && || operation
 int execute_command_sequence_status(const char *full_command) {
+    // command array
     char command[strlen(full_command) + 1];
+    // storing the full command to array
     strcpy(command, full_command);
 
+    // array for storing command sub section
     char *args[strlen(full_command) / 2 + 1];
     int argc = 0;
 
+    // tokenizing depending on space
     char *sub_command_string = strtok(command, " ");
     while (sub_command_string != NULL) {
+        // storing all the subsection of the command in the array
         args[argc++] = sub_command_string;
+        // resetting the tokenizer
         sub_command_string = strtok(NULL, " ");
     }
     args[argc] = NULL;
 
+    // forking to run the command in child
     pid_t pid = fork();
 
     if (pid == -1) {
         perror("fork");
         return EXIT_FAILURE;
-    } else if (pid == 0) {
+    }
+    // child block
+    else if (pid == 0) {
+        // executing the command
         execvp(args[0], args);
 
         perror("execvp");
         exit(EXIT_FAILURE);
-    } else {
+    }
+    // parent block
+    else {
+        // for storign the status sent by child
         int status;
+        // waiting for the child to send status
         waitpid(pid, &status, 0);
 
+        // returning the status
         if (WIFEXITED(status)) {
             return WEXITSTATUS(status);
         } else {
@@ -478,7 +530,10 @@ int execute_command_sequence_status(const char *full_command) {
     }
 }
 
+
+// function for getting the subcommands from the main command by || character
 char** get_subcommands_by_or(char *command) {
+    // creating the holder array
     char** subcommands_or = malloc(sizeof(char*) * 100);
     if (subcommands_or == NULL) {
         perror("Memory allocation failed");
@@ -491,22 +546,32 @@ char** get_subcommands_by_or(char *command) {
     int length = strlen(command);
     int i;
 
+    // looping for the length of the command
     for (i = 0; i < length; i++) {
+        // if || found
         if (command[i] == '|' && command[i + 1] == '|') {
+            // calculating the sub command length
             int sub_len = end - start;
+            // allocating memory for the subcommand
             subcommands_or[count] = malloc(sub_len + 1);
             if (subcommands_or[count] == NULL) {
                 perror("Memory allocation failed");
                 exit(EXIT_FAILURE);
             }
+            // storing data to the array by copying
             strncpy(subcommands_or[count], start, sub_len);
+            // null terminating
             subcommands_or[count][sub_len] = '\0';
+            // removing any unnecessary & characters
             replace_character(subcommands_or[count], '&', ' ');
             count++;
-
+            // moving the cursor by 2 point to read next to the special operator
             start = &command[i + 2];
+            // resetting end pointer
             end = start;
-        } else {
+        }
+        // if && operator not ound then move to next
+        else {
             end++;
         }
     }
@@ -527,7 +592,10 @@ char** get_subcommands_by_or(char *command) {
     return subcommands_or;
 }
 
+
+// function for getting the subcommands from the main command by && character
 char** get_subcommands(char *command) {
+    // creating the holder array
     char** subcommands = malloc(sizeof(char*) * 100);
     if (subcommands == NULL) {
         perror("Memory allocation failed");
@@ -540,32 +608,46 @@ char** get_subcommands(char *command) {
     int length = strlen(command);
     int i;
 
+    // looping for the length of the command
     for (i = 0; i < length; i++) {
+        // if && found
         if (command[i] == '&' && command[i + 1] == '&') {
-            int sub_len = end - start;
-            subcommands[count] = malloc(sub_len + 1);
+            // calculating the sub command length
+            int sub_command_len = end - start;
+            // allocating memory for the subcommand
+            subcommands[count] = malloc(sub_command_len + 1);
             if (subcommands[count] == NULL) {
                 perror("Memory allocation failed");
                 exit(EXIT_FAILURE);
             }
-            strncpy(subcommands[count], start, sub_len);
-            subcommands[count][sub_len] = '\0';
+            // storing data to the array by copying
+            strncpy(subcommands[count], start, sub_command_len);
+            // null terminating
+            subcommands[count][sub_command_len] = '\0';
             count++;
 
+            // moving the cursor by 2 point to read next to the special operator
             start = &command[i + 2];
+            // resetting end pointer
             end = start;
-        } else {
+        }
+        // if && operator not ound then move to next
+        else {
             end++;
         }
     }
 
+    // getting length of the substring
     int sub_len = end - start;
+    // allocating memory
     subcommands[count] = malloc(sub_len + 1);
     if (subcommands[count] == NULL) {
         perror("Memory allocation failed");
         exit(EXIT_FAILURE);
     }
+    // inserting the last subcommand to the array
     strncpy(subcommands[count], start, sub_len);
+    // null terminating
     subcommands[count][sub_len] = '\0';
     count++;
 
@@ -574,19 +656,30 @@ char** get_subcommands(char *command) {
     return subcommands;
 }
 
+
+// function for running the && || command
 void handle_and_or(char *command){
+    // storing the subcommands
     char** subcommands = get_subcommands(command);
 
+    // for each subcommand separated by &&
     for (int i = 0; subcommands[i] != NULL; i++) {
+        // get the subcommands separated by ||
         char **subcommands_or = get_subcommands_by_or(subcommands[i]);
+        // for each subcommand
         for (int j = 0; subcommands_or[j] != NULL; j++) {
+            // replacing all unnecessary garbage characters
             replace_character(subcommands_or[j], '|', ' ');
             replace_character(subcommands_or[j], '&', ' ');
+            // executing the commands
             int status = execute_command_sequence_status(subcommands_or[j]);
+            // if a set of commands connected by || is run, and one of them is successful
+            // immediately it stops and subsequent commands have no need for execution
             if (status == EXIT_SUCCESS) {
                 break;
             }
         }
+        // freeing memory
         for (int k = 0; subcommands_or[k] != NULL; k++) {
             free(subcommands_or[k]);
         }

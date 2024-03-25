@@ -542,67 +542,93 @@ void handle_and_or(char *command){
     free(subcommands);
 }
 
+
 int main(int argc, char *argv[]) {
+    // for storing user entered command
     char command[MAX_COMMAND_LENGTH];
+    // shell prompt printing variable. if 1 then print shell prompt
     int print_prompt = 1;
 
+    // if the program has already been run by NEWT then no need to print
+    // the shell prompt text
     if (argc > 1 && strcmp(argv[1], "newt") == 0) {
+        // setting the print_prompt to 0 so that no more shell prompt is printed
         print_prompt = 0;
     }
 
+    // starting the infinite loop
     while (1) {
+        // checking whether shell prompt needs to be printed or not
         if (print_prompt) {
+            // printing the shell prompt
             printf("\nshell24$ ");
+            // flushing to show the prompt immediately
             fflush(stdout);
         }
 
+        // checks whether command reading was successful
         if (fgets(command, sizeof(command), stdin) == NULL) {
             fprintf(stderr, "Error reading command\n");
             continue;
         }
 
+        // trimming the command
         command[strcspn(command, "\n")] = '\0';
 
+        // if user enters NEWT then open a new terminal
         if (strcmp(command, "newt") == 0) {
+            // forking to run the new terminal opening code
             if (fork() == 0) {
+                // inside child executing the xterm command
                 execlp("xterm", "xterm", "-e", "./shell24", "newt", NULL);
                 exit(EXIT_SUCCESS);
             }
         }
+        // if not newt then work with the custom commands
         else {
 
-            // DONE # Text file (.txt) concatenation
+            // # Text file (.txt) concatenation
+            // checking which special command does the string contain
             if (has_hash(command)) {
-                //a.txt#b.txt#c.txt#d.txt#e.txt#f.txt#g.txt
-                // Split command by OR operator
+                // Splitting command by # operator
                 char **hash_commands = split_by_operator(command, "#");
+                // checking the total number of allowed special command
                 if (special_character_count > 6) {
                     printf("Maximum 5 # can be handled at a time\n");
                 } else {
+                    // running the file concatenation meethod
                     concatenate_files(hash_commands);
                 }
-                // Free memory allocated for command array
+                // Freeing the memory
                 free(hash_commands);
             }
 
             // | Piping
+            // checking which special command does the string contain
             else if (has_pipe(command)) {
-                // cat z.txt | grep x | wc | wc | wc | wc | wc | wc
+                // Splitting command by | operator
                 char **pipe_commands = split_by_operator(command, "|");
+                // checking the total number of allowed special command
                 if (special_character_count > 7) {
                     printf("Maximum 6 | can be handled at a time\n");
                 } else {
+                    // running the piped command executing function
                     execute_piped_commands(command);
                 }
+                // Freeing the memory
                 free(pipe_commands);
             }
 
             // DONE > Redirection
+            // checking which special command does the string contain
             else if (has_output_redirect(command)) {
+                // Splitting command by > operator
                 char **output_redirection_commands = split_by_operator(command, ">");
+                // checking the total number of allowed special command
                 if (special_character_count > 2) {
                     printf("Maximum 1 > can be handled at a time\n");
                 } else if (special_character_count == 2) {
+                    // running the output redirection method
                     execute_output_redirection_command(
                     output_redirection_commands[0],
                     output_redirection_commands[1]
@@ -610,15 +636,20 @@ int main(int argc, char *argv[]) {
                 } else {
                     printf("Invalid output redirection command");
                 }
+                // Freeing the memory
                 free(output_redirection_commands);
             }
 
             // DONE >> Redirection
+            // checking which special command does the string contain
             else if (has_append_redirect(command)) {
+                // Splitting command by >> operator
                 char **output_append_redirection_commands = split_by_operator(command, ">");
+                // checking the total number of allowed special command
                 if (special_character_count > 2) {
                     printf("Maximum 1 >> can be handled at a time\n");
                 } else if (special_character_count == 2) {
+                    // running the append redirection method
                     execute_output_append_redirection_command(
                             output_append_redirection_commands[0],
                             output_append_redirection_commands[1]
@@ -626,15 +657,20 @@ int main(int argc, char *argv[]) {
                 } else {
                     printf("Invalid output append redirection command");
                 }
+                // Freeing the memory
                 free(output_append_redirection_commands);
             }
 
             // DONE < Redirection
+            // checking which special command does the string contain
             else if (has_input_redirect(command)) {
+                // Splitting command by < operator
                 char **input_redirection_commands = split_by_operator(command, "<");
+                // checking the total number of allowed special command
                 if (special_character_count > 2) {
                     printf("Maximum 1 < can be handled at a time\n");
                 } else if (special_character_count == 2) {
+                    // running the input redirection command
                     execute_input_redirection_command(
                             input_redirection_commands[0],
                             input_redirection_commands[1]
@@ -642,68 +678,93 @@ int main(int argc, char *argv[]) {
                 } else {
                     printf("Invalid input redirection command");
                 }
+                // Freeing the memory
                 free(input_redirection_commands);
             }
 
             // DONE && Conditional Execution
+            // checking which special command does the string contain
             else if (has_and_operator(command)) {
                 int total_operators = count_operators(command);
 
+                // checking the total number of allowed special command
                 if (total_operators > 5) {
                     printf("Maximum 5 || or && can be handled at a time\n");
                 } else {
+                    //running the handle || && command
                     handle_and_or(command);
                 }
             }
 
             // DONE || Conditional Execution
+            // checking which special command does the string contain
             else if (has_or_operator(command)) {
                 int total_operators = count_operators(command);
 
+                // checking the total number of allowed special command
                 if (total_operators > 5) {
                     printf("Maximum 5 || or && can be handled at a time\n");
                 } else {
+                    //running the handle || && command
                     handle_and_or(command);
                 }
             }
 
             // DONE & Background Processing
+            // checking which special command does the string contain
             else if (has_background_process(command)) {
+                // Splitting command by space
                 char **bg_commands = split_by_operator(command, " ");
+                // calling the run on background method
                 run_in_background(bg_commands[0]);
+                // Freeing the memory
                 free(bg_commands);
 
             }
             else if (strcmp(command, "fg") == 0) {
+                // bringing the last process that was sent to background to foreground
                 bring_to_foreground();
             }
 
             // DONE ; Sequential execution
+            // checking which special command does the string contain
             else if (has_sequential_execution(command)) {
+                // Splitting command by ; operator
                 char **sequential_commands = split_by_operator(command, ";");
+
+                // checking the total number of allowed special command
                 if (special_character_count > 5) {
                     printf("Maximum 5 ; can be handled at a time\n");
                 } else {
                     for (int i = 0; i < special_character_count; i++) {
+                        // Splitting command by space
                         char **specific_command = split_by_space_operator(sequential_commands[i], " ");
+
+                        // checking the total number of allowed special command
                         if (special_space_count > 6) {
                             printf("Maximum 5 args can be handled at a time\n");
                             break;
                         } else {
+                            // running the sequential execution function
                             execute_command_sequence(sequential_commands[i]);
                         }
+                        // Freeing the memory
                         free(specific_command);
                     }
                 }
+                // Freeing the memory
                 free(sequential_commands);
             }
 
             // DONE Plain command
             else {
                 printf("Plain command: %s\n", command);
+                // running the plain command
                 execute_command_sequence(command);
             }
         }
+        // resetting print_prompt so that after running the command
+        // the shell prompt is printed again
         print_prompt = 1;
     }
     return 0;

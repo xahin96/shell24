@@ -15,26 +15,17 @@ int special_character_count = 0;
 
 // Run a process in the run_in_background
 void run_in_background (char *command) {
-    printf("The program input by user will be run in the run_in_background\n");
-    // int argc;
-    // split_each_command(command, &argc);
-    printf("run_in_background process is %s\n", command);
-
     int pid = fork();
     // child
     if ( pid == 0 ) {
-        printf("%d - %d - %d \n", getpid(), getppid(), getpgid(getpid()));
         setsid();
-        printf("%d - %d - %d \n", getpid(), getppid(), getpgid(getpid()));
-        printf("The child process will be differentiated and run in the run_in_background\n");
         execlp(command, command, NULL);
-        printf("Differentiation unsuccessful\n");
+        perror("execlp");
     }
-        // parent
+    // parent
     else if (pid > 0) {
         background_pid = pid;
         kill(pid, SIGSTOP);
-        printf("run_in_background process pid = %d\n", pid);
     } else {
         printf("Fork failed\n");
     }
@@ -653,7 +644,7 @@ int main(int argc, char *argv[]) {
                 //a.txt#b.txt#c.txt#d.txt#e.txt#f.txt#g.txt
                 // Split command by OR operator
                 char **hash_commands = split_by_operator(command, "#");
-                if (special_character_count > 5) {
+                if (special_character_count > 6) {
                     printf("Maximum 5 # can be handled at a time\n");
                 } else {
                     concatenate_files(hash_commands);
@@ -664,7 +655,15 @@ int main(int argc, char *argv[]) {
 
             // | Piping
             else if (has_pipe(command)) {
-                execute_piped_commands(command);
+                // cat z.txt | grep x | wc | wc | wc | wc | wc | wc
+                char **pipe_commands = split_by_operator(command, "|");
+                if (special_character_count > 7) {
+                    printf("Maximum 6 | can be handled at a time\n");
+                } else {
+                    execute_piped_commands(command);
+                }
+                // Free memory allocated for command array
+                free(pipe_commands);
             }
 
             // DONE > Redirection
@@ -722,7 +721,7 @@ int main(int argc, char *argv[]) {
             else if (has_and_operator(command)) {
                 int total_operators = count_operators(command);
 
-                if (total_operators > 4) {
+                if (total_operators > 5) {
                     printf("Maximum 5 || or && can be handled at a time\n");
                 } else {
                     handle_and_or(command);
@@ -733,7 +732,7 @@ int main(int argc, char *argv[]) {
             else if (has_or_operator(command)) {
                 int total_operators = count_operators(command);
 
-                if (total_operators > 4) {
+                if (total_operators > 5) {
                     printf("Maximum 5 || or && can be handled at a time\n");
                 } else {
                     handle_and_or(command);

@@ -61,27 +61,38 @@ void bring_to_foreground () {
     }
 }
 
+
+// function for concatenating files in the file list
 void concatenate_files(const char **fileNames) {
+    // forking to run command from child
     pid_t pid = fork();
     if (pid == -1) {
         perror("fork");
         exit(EXIT_FAILURE);
     }
 
+    // selecting child process
     if (pid == 0) {
-        char *args[special_character_count + 2];
-        args[0] = "cat";
+        // declaring a array for soring the commands to run with two extra
+        // space. one for cat command and one for null termination
+        char *command_array[special_character_count + 2];
+        command_array[0] = "cat";
+        // generating the command array with all the filenames
         for (int i = 0; i < special_character_count; i++) {
-            args[i + 1] = strdup(fileNames[i]);
+            command_array[i + 1] = strdup(fileNames[i]);
         }
-        args[special_character_count + 1] = NULL;
+        command_array[special_character_count + 1] = NULL;
 
-        if (execvp(args[0], args) == -1) {
+        // finally executing the command
+        if (execvp(command_array[0], command_array) == -1) {
             perror("execvp");
             exit(EXIT_FAILURE);
         }
-    } else {
+    }
+    // parent block
+    else {
         int status;
+        // waiting for child to finish
         waitpid(pid, &status, 0);
     }
 }
@@ -142,68 +153,94 @@ char **split_by_space_operator(const char *command, const char *special_characte
     return commands;
 }
 
-int count_operators(char *str) {
-    int count = 0;
-    char *ptr = str;
-    while ((ptr = strstr(ptr, "||")) != NULL) {
-        count++;
-        ptr += 2;
+
+// function for counting the total number of && or || in a command
+int count_operators(char *base_command) {
+    int and_or_counter = 0;
+    char *command_string = base_command;
+    while ((command_string = strstr(command_string, "||")) != NULL) {
+        and_or_counter++;
+        command_string += 2;
     }
-    ptr = str;
-    while ((ptr = strstr(ptr, "&&")) != NULL) {
-        count++;
-        ptr += 2;
+    command_string = base_command;
+    while ((command_string = strstr(command_string, "&&")) != NULL) {
+        and_or_counter++;
+        command_string += 2;
     }
-    return count;
+    return and_or_counter;
 }
 
+
+// function for checking if the command contains pipe or not
 int has_pipe(char *command) {
+    // checking for the existence of | character
     char *found_pipe = strstr(command, "|");
     char *found_or = strstr(command, "||");
     return found_pipe != NULL && (found_or == NULL || found_pipe < found_or);
 }
 
+
+// function for checking if the command contains ||
 int has_or_operator(char *command) {
+    // working on the copy of the command
     char *command_copy = strdup(command);
+    // splitting by splace
     char *sub_command_string = strtok(command_copy, " ");
+    // continuously searching for ||
     while (sub_command_string != NULL) {
+        // searching for the || operator
         if (strcmp(sub_command_string, "||") == 0) {
             free(command_copy);
             return 1;
         }
+        // resetting tokenizer for next loop
         sub_command_string = strtok(NULL, " ");
     }
     free(command_copy);
     return 0;
 }
 
+
+// function for checking if the command contains >
 int has_output_redirect(char *command) {
     char *found = strstr(command, ">");
     return found != NULL && (found[1] != '>' || strlen(found) == 1);
 }
 
+
+// function for checking if the command contains >>
 int has_append_redirect(char *command) {
     return strstr(command, ">>") != NULL;
 }
 
+
+// function for checking if the command contains #
 int has_hash(char *command) {
     return strchr(command, '#') != NULL;
 }
 
+
+// function for checking if the command contains <
 int has_input_redirect(char *command) {
     return strchr(command, '<') != NULL;
 }
 
+
+// function for checking if the command contains <<
 int has_and_operator(char *command) {
     char *found = strstr(command, "&&");
     return found != NULL && (found[2] == '\0' || found[2] == ' ');
 }
 
+
+// function for checking if the command contains &
 int has_background_process(char *command) {
     int length = strlen(command);
     return length > 0 && command[length - 1] == '&';
 }
 
+
+// function for checking if the command contains ;
 int has_sequential_execution(char *command) {
     return strchr(command, ';') != NULL;
 }
@@ -391,13 +428,16 @@ void execute_piped_commands(char *command) {
     }
 }
 
-void replaceCharacter(char *str, char oldChar, char newChar) {
-    int i;
-    int length = strlen(str);
 
-    for (i = 0; i < length; i++) {
-        if (str[i] == oldChar) {
-            str[i] = newChar;
+// function for replacing a specific character with a new character
+void replace_character(char *str, char old_char, char new_char) {
+    int i;
+    int string_length = strlen(str);
+
+    // searching for the character and replacing it
+    for (i = 0; i < string_length; i++) {
+        if (str[i] == old_char) {
+            str[i] = new_char;
         }
     }
 }
@@ -461,7 +501,7 @@ char** get_subcommands_by_or(char *command) {
             }
             strncpy(subcommands_or[count], start, sub_len);
             subcommands_or[count][sub_len] = '\0';
-            replaceCharacter(subcommands_or[count], '&', ' ');
+            replace_character(subcommands_or[count], '&', ' ');
             count++;
 
             start = &command[i + 2];
@@ -479,7 +519,7 @@ char** get_subcommands_by_or(char *command) {
     }
     strncpy(subcommands_or[count], start, sub_len);
     subcommands_or[count][sub_len] = '\0';
-    replaceCharacter(subcommands_or[count], '&', ' ');
+    replace_character(subcommands_or[count], '&', ' ');
     count++;
 
     subcommands_or[count] = NULL;
@@ -540,8 +580,8 @@ void handle_and_or(char *command){
     for (int i = 0; subcommands[i] != NULL; i++) {
         char **subcommands_or = get_subcommands_by_or(subcommands[i]);
         for (int j = 0; subcommands_or[j] != NULL; j++) {
-            replaceCharacter(subcommands_or[j], '|', ' ');
-            replaceCharacter(subcommands_or[j], '&', ' ');
+            replace_character(subcommands_or[j], '|', ' ');
+            replace_character(subcommands_or[j], '&', ' ');
             int status = execute_command_sequence_status(subcommands_or[j]);
             if (status == EXIT_SUCCESS) {
                 break;

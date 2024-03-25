@@ -6,11 +6,14 @@
 #include <fcntl.h>
 #include <signal.h>
 
-#define MAX_PIPES 6
+#define MAX_ALLOWED_PIPES 6
 #define MAX_COMMAND_LENGTH 100
 
+// Used for storing the PID of the bg process
 pid_t background_pid;
+// For counting the total number of space
 int special_space_count = 0;
+// For counting the total number of special character
 int special_character_count = 0;
 
 void run_in_background (char *command) {
@@ -66,35 +69,58 @@ void concatenate_files(const char **fileNames) {
     }
 }
 
-char **split_by_operator(const char *command, const char *special_character) {
-    special_character_count = 0;
-    char *token;
-    char *command_copy = strdup(command);
-    char **commands = malloc(MAX_COMMAND_LENGTH * sizeof(char *));
 
-    token = strtok(command_copy, special_character);
-    while (token != NULL) {
-        commands[special_character_count++] = strdup(token);
-        token = strtok(NULL, special_character);
+// Splits a command with a special character and returns the sub command list
+char **split_by_operator(const char *command, const char *special_character) {
+    // restarting the special character count variable
+    special_character_count = 0;
+    // variable for storing the temporary sub command
+    char *sub_command_string;
+    // Copying the command so that the main string doesn't get manipulated
+    char *command_copy = strdup(command);
+    // array for storing all the sub commands
+    char **sub_command_list = malloc(MAX_COMMAND_LENGTH * sizeof(char *));
+
+    // tokenizing the command_copy variable by special_character
+    sub_command_string = strtok(command_copy, special_character);
+    // looking for all the tokens for storing
+    while (sub_command_string != NULL) {
+        // inserting sub command to array
+        sub_command_list[special_character_count++] = strdup(sub_command_string);
+        // continuing the sub command splitting
+        sub_command_string = strtok(NULL, special_character);
     }
-    commands[special_character_count] = NULL;
+    // null terminating for ending the array
+    sub_command_list[special_character_count] = NULL;
+    // freeing the memory
     free(command_copy);
-    return commands;
+    return sub_command_list;
 }
 
+
+// Splits a command with space and returns the sub command list
 char **split_by_space_operator(const char *command, const char *special_character) {
+    // restarting the space count variable
     special_space_count = 0;
-    char *token;
+    // variable for storing the temporary sub command
+    char *sub_command_string;
+    // Copying the command so that the main string doesn't get manipulated
     char *command_copy = strdup(command);
+    // array for storing all the sub commands
     char **commands = malloc(MAX_COMMAND_LENGTH * sizeof(char *));
 
-    token = strtok(command_copy, special_character);
-    while (token != NULL) {
-        commands[special_space_count++] = strdup(token);
-        token = strtok(NULL, special_character);
+    // tokenizing the command_copy variable by special_character
+    sub_command_string = strtok(command_copy, special_character);
+    // looking for all the tokens for storing
+    while (sub_command_string != NULL) {
+        // inserting sub command to array
+        commands[special_space_count++] = strdup(sub_command_string);
+        // continuing the sub command splitting
+        sub_command_string = strtok(NULL, special_character);
     }
+    // null terminating for ending the array
     commands[special_space_count] = NULL;
-
+    // freeing the memory
     free(command_copy);
     return commands;
 }
@@ -122,13 +148,13 @@ int has_pipe(char *command) {
 
 int has_or_operator(char *command) {
     char *command_copy = strdup(command);
-    char *token = strtok(command_copy, " ");
-    while (token != NULL) {
-        if (strcmp(token, "||") == 0) {
+    char *sub_command_string = strtok(command_copy, " ");
+    while (sub_command_string != NULL) {
+        if (strcmp(sub_command_string, "||") == 0) {
             free(command_copy);
             return 1;
         }
-        token = strtok(NULL, " ");
+        sub_command_string = strtok(NULL, " ");
     }
     free(command_copy);
     return 0;
@@ -172,10 +198,10 @@ void execute_command_sequence(const char *full_command) {
     char *args[strlen(full_command) / 2 + 1];
     int argc = 0;
 
-    char *token = strtok(command, " ");
-    while (token != NULL) {
-        args[argc++] = token;
-        token = strtok(NULL, " ");
+    char *sub_command_string = strtok(command, " ");
+    while (sub_command_string != NULL) {
+        args[argc++] = sub_command_string;
+        sub_command_string = strtok(NULL, " ");
     }
     args[argc] = NULL;
 
@@ -288,13 +314,13 @@ void execute_input_redirection_command(const char *full_command, const char *inp
 }
 
 void execute_piped_commands(char *command) {
-    char *commands[MAX_PIPES];
+    char *commands[MAX_ALLOWED_PIPES];
     int num_pipes = 0;
 
-    char *token = strtok(command, "|");
-    while (token != NULL && num_pipes < MAX_PIPES) {
-        commands[num_pipes++] = token;
-        token = strtok(NULL, "|");
+    char *sub_command_string = strtok(command, "|");
+    while (sub_command_string != NULL && num_pipes < MAX_ALLOWED_PIPES) {
+        commands[num_pipes++] = sub_command_string;
+        sub_command_string = strtok(NULL, "|");
     }
 
     int pipes[num_pipes - 1][2];
@@ -366,10 +392,10 @@ int execute_command_sequence_status(const char *full_command) {
     char *args[strlen(full_command) / 2 + 1];
     int argc = 0;
 
-    char *token = strtok(command, " ");
-    while (token != NULL) {
-        args[argc++] = token;
-        token = strtok(NULL, " ");
+    char *sub_command_string = strtok(command, " ");
+    while (sub_command_string != NULL) {
+        args[argc++] = sub_command_string;
+        sub_command_string = strtok(NULL, " ");
     }
     args[argc] = NULL;
 
